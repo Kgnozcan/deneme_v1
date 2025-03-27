@@ -6,8 +6,17 @@ import 'game_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   final String roomId;
+  final String playerId;
+  final String playerName;
+  final bool isHost;
 
-  const LobbyScreen({Key? key, required this.roomId}) : super(key: key);
+  const LobbyScreen({
+    Key? key,
+    required this.roomId,
+    required this.playerId,
+    required this.playerName,
+    required this.isHost,
+  }) : super(key: key);
 
   @override
   _LobbyScreenState createState() => _LobbyScreenState();
@@ -22,6 +31,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
   void initState() {
     super.initState();
     _roomStream = _gameService.getRoomStream(widget.roomId);
+
+    // 🧪 TEST MODU: Eğer ev sahibiysen oyunu otomatik başlat
+    Future.delayed(Duration(seconds: 2), () async {
+      if (widget.isHost) {
+        await _gameService.startGame(widget.roomId);
+      }
+    });
   }
 
   Future<void> _startGame() async {
@@ -53,13 +69,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
           }
 
           final room = snapshot.data!;
-          final isHost = room.players.any((p) => p.id == _gameService.currentUserId && (p.isHost ?? false));
 
           if (room.isGameStarted) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => GameScreen(roomId: room.id)),
+                MaterialPageRoute(
+                  builder: (context) => GameScreen(
+                    roomId: room.id,
+                    playerId: widget.playerId,
+                    playerName: widget.playerName,
+                    isHost: widget.isHost,
+                  ),
+                ),
               );
             });
           }
@@ -69,9 +91,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Oda Kodu: ${room.id}', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('Oda Kodu: ${room.id}',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 SizedBox(height: 20),
-                Text('Oyuncular:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Oyuncular:',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Expanded(
                   child: ListView.builder(
                     itemCount: room.players.length,
@@ -79,20 +103,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       final player = room.players[index];
                       return ListTile(
                         title: Text(player.name),
-                        trailing: (player.isHost ?? false) ? Chip(label: Text('Ev Sahibi')) : null,
+                        trailing: player.isHost
+                            ? Chip(label: Text('Ev Sahibi'))
+                            : null,
                       );
                     },
                   ),
                 ),
-                if (isHost)
+                if (widget.isHost)
                   ElevatedButton(
-                    onPressed: room.players.length >= 2 && !_startingGame ? _startGame : null,
+                    onPressed:
+                    room.players.length >= 2 && !_startingGame ? _startGame : null,
                     child: _startingGame
                         ? CircularProgressIndicator(color: Colors.white)
                         : Text('Oyunu Başlat'),
                   )
                 else
-                  Text('Ev sahibinin oyunu başlatmasını bekleyin...', textAlign: TextAlign.center),
+                  Text(
+                    'Ev sahibinin oyunu başlatmasını bekleyin...',
+                    textAlign: TextAlign.center,
+                  ),
               ],
             ),
           );

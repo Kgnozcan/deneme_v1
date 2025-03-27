@@ -23,10 +23,19 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
     if (success) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => LobbyScreen(roomId: _roomCodeController.text)),
+        MaterialPageRoute(
+          builder: (context) => LobbyScreen(
+            roomId: _roomCodeController.text,
+            playerId: _gameService.currentUserId,
+            playerName: _nameController.text,
+            isHost: false, // Eklendi!
+          ),
+        ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Odaya katılamadınız')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Odaya katılamadınız')),
+      );
     }
   }
 

@@ -22,7 +22,14 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => LobbyScreen(roomId: roomId)),
+      MaterialPageRoute(
+        builder: (context) => LobbyScreen(
+          roomId: roomId,
+          playerId: _gameService.currentUserId,
+          playerName: _nameController.text,
+          isHost: true,
+        ),
+      ),
     );
   }
 
