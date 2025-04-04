@@ -92,14 +92,14 @@ class _GameScreenState extends State<GameScreen> {
       print("🚀 _navigateToChooseAnswer tetiklendi. Ekran açılıyor...");
 
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _gameService.setVotesEvaluated(widget.roomId, true); // <-- Burası eklendi ✅
-
         await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ChooseAnswerScreen(
               questionText: questionText,
               allAnswers: allAnswers,
+              playerId: widget.playerId,
+              roomId: widget.roomId,
               onSubmit: (selectedAnswer) async {
                 final parts = selectedAnswer.split('|');
                 final votedPlayerId = parts.length > 1 ? parts[1] : '';
@@ -108,13 +108,12 @@ class _GameScreenState extends State<GameScreen> {
                   widget.playerId,
                   votedPlayerId,
                 );
-                Navigator.pop(context); // seçimi yaptıktan sonra kapatır.
+                Navigator.pop(context);
               },
             ),
           ),
         );
 
-        // ChooseAnswerScreen kapandıktan sonra çalışır
         if (mounted) {
           setState(() {
             hasNavigatedToVote = false;
@@ -124,17 +123,12 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-
-
-
-
-  void _navigateToResultScreen(String correctAnswer, List<dynamic> players, List<String> answers) {
+  void _navigateToResultScreen(String correctAnswer, List<dynamic> players) {
     if (!hasNavigatedToResult) {
       hasNavigatedToResult = true;
 
       final playerScores = {
-        for (var p in players)
-          p['name'] as String: (p['score'] ?? 0) as int
+        for (var p in players) p['name'] as String: (p['score'] ?? 0) as int
       };
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -144,6 +138,7 @@ class _GameScreenState extends State<GameScreen> {
             builder: (context) => ResultScreen(
               correctAnswer: correctAnswer,
               playerScores: playerScores,
+              roomId: widget.roomId,
               onNext: () async {
                 await _gameService.goToNextRound(widget.roomId);
                 setState(() {
@@ -189,21 +184,16 @@ class _GameScreenState extends State<GameScreen> {
             _navigateToEnterBluff(question['text']);
           } else if (answers.length == players.length && !votesEvaluated) {
             final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
+            final fakeAnswers = List<String>.from(question?['fakeAnswers'] ?? []);
+            fakeAnswers.shuffle();
 
-            // Buraya ekliyoruz: minimum 4 yanlış cevap ekle (default cevaplar)
-            List<String> defaultFakeAnswers = [
-              "Berlin", "Paris", "Roma", "Tokyo", "Madrid", "Londra", "New York"
-            ]..shuffle();
-
-            // Eksikse ekleyerek tamamla (toplam 4 adet olacak şekilde)
-            while (cleanedAnswers.length < 4) {
-              String fakeAnswer = defaultFakeAnswers.removeLast();
-              if (!cleanedAnswers.contains(fakeAnswer) && fakeAnswer != correctAnswer) {
-                cleanedAnswers.add(fakeAnswer);
+            while (cleanedAnswers.length < 4 && fakeAnswers.isNotEmpty) {
+              final fake = fakeAnswers.removeLast();
+              if (!cleanedAnswers.contains(fake) && fake != correctAnswer) {
+                cleanedAnswers.add(fake);
               }
             }
 
-            // Doğru cevabı ekle (toplam 5 cevap olur)
             if (!cleanedAnswers.contains(correctAnswer)) {
               cleanedAnswers.add(correctAnswer);
             }
@@ -212,110 +202,19 @@ class _GameScreenState extends State<GameScreen> {
 
             print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
             _navigateToChooseAnswer(question['text'], allAnswers);
-          }else if (votesEvaluated && !hasNavigatedToResult) {
+          } else if (votesEvaluated && !showResults) {
             if (widget.isHost && !hasCalculatedScore) {
               hasCalculatedScore = true;
               _gameService.calculateVotesAndScore(widget.roomId, correctAnswer).then((_) {
                 _gameService.setShowResults(widget.roomId, true);
               });
             }
-            hasNavigatedToResult = true;
-            final playerScores = {
-              for (var p in players) p['name'] as String: (p['score'] ?? 0) as int
-            };
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ResultScreen(
-                    correctAnswer: correctAnswer,
-                    playerScores: playerScores,
-                    onNext: () async {
-                      await _gameService.goToNextRound(widget.roomId);
-                      setState(() {
-                        hasNavigatedToBluff = false;
-                        hasNavigatedToVote = false;
-                        hasNavigatedToResult = false;
-                        hasCalculatedScore = false;
-                      });
-                    },
-                  ),
-                ),
-              );
-            });
-          } else if (answers.length == players.length && !votesEvaluated) {
-            final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
-
-            // Firestore'dan fakeAnswers'ı al
-            final currentQuestion = question;
-            final fakeAnswers = List<String>.from(currentQuestion?['fakeAnswers'] ?? []);
-            fakeAnswers.shuffle();
-
-            while (cleanedAnswers.length < 4 && fakeAnswers.isNotEmpty) {
-              final fake = fakeAnswers.removeLast();
-              if (!cleanedAnswers.contains(fake) && fake != correctAnswer) {
-                cleanedAnswers.add(fake);
-              }
-            }
-
-            if (!cleanedAnswers.contains(correctAnswer)) {
-              cleanedAnswers.add(correctAnswer);
-            }
-
-            final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
-
-            print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
-            _navigateToChooseAnswer(question['text'], allAnswers);
-          }
-          else if (answers.length == players.length && !votesEvaluated) {
-            final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
-
-            // Firestore'dan fakeAnswers'ı al
-            final currentQuestion = question;
-            final fakeAnswers = List<String>.from(currentQuestion?['fakeAnswers'] ?? []);
-            fakeAnswers.shuffle();
-
-            while (cleanedAnswers.length < 4 && fakeAnswers.isNotEmpty) {
-              final fake = fakeAnswers.removeLast();
-              if (!cleanedAnswers.contains(fake) && fake != correctAnswer) {
-                cleanedAnswers.add(fake);
-              }
-            }
-
-            if (!cleanedAnswers.contains(correctAnswer)) {
-              cleanedAnswers.add(correctAnswer);
-            }
-
-            final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
-
-            print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
-            _navigateToChooseAnswer(question['text'], allAnswers);
+          } else if (votesEvaluated && showResults && !hasNavigatedToResult) {
+            _navigateToResultScreen(correctAnswer, players);
           }
 
-          if (showResults) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '🎉 Oyun Bitti!',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 20),
-                  Text(
-                    'Tüm turlar tamamlandı.',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  SizedBox(height: 40),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.popUntil(context, (route) => route.isFirst);
-                    },
-                    child: Text('Ana Sayfaya Dön'),
-                  ),
-                ],
-              ),
-            );
+          if (showResults && !votesEvaluated) {
+            return Center(child: Text('Skorlar hesaplanıyor...'));
           }
 
           return Center(

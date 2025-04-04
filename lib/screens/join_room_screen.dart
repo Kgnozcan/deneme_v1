@@ -1,40 +1,62 @@
 import 'package:flutter/material.dart';
-import '../services/game_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'lobby_screen.dart';
 
 class JoinRoomScreen extends StatefulWidget {
+  const JoinRoomScreen({super.key});
+
   @override
-  _JoinRoomScreenState createState() => _JoinRoomScreenState();
+  State<JoinRoomScreen> createState() => _JoinRoomScreenState();
 }
 
 class _JoinRoomScreenState extends State<JoinRoomScreen> {
   final TextEditingController _roomCodeController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  final GameService _gameService = GameService();
+  final TextEditingController _playerNameController = TextEditingController();
+  String? _error;
 
   Future<void> _joinRoom() async {
-    if (_roomCodeController.text.isEmpty || _nameController.text.isEmpty) return;
+    final roomCode = _roomCodeController.text.trim();
+    final playerName = _playerNameController.text.trim();
 
-    bool success = await _gameService.joinRoom(
-      _roomCodeController.text,
-      _nameController.text,
-    );
+    if (roomCode.isEmpty || playerName.isEmpty) {
+      setState(() {
+        _error = 'Lütfen tüm alanları doldurun.';
+      });
+      return;
+    }
 
-    if (success) {
+    final roomDoc = FirebaseFirestore.instance.collection('rooms').doc(roomCode);
+    final docSnapshot = await roomDoc.get();
+
+    if (!docSnapshot.exists) {
+      setState(() {
+        _error = 'Böyle bir oda bulunamadı.';
+      });
+      return;
+    }
+
+    final newPlayer = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'name': playerName,
+      'score': 0,
+      'isHost': false,
+    };
+
+    await roomDoc.update({
+      'players': FieldValue.arrayUnion([newPlayer])
+    });
+
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => LobbyScreen(
-            roomId: _roomCodeController.text,
-            playerId: _gameService.currentUserId,
-            playerName: _nameController.text,
-            isHost: false, // Eklendi!
+            roomId: roomCode,
+            playerId: newPlayer['id'] as String,
+            isHost: false,
+            playerName: playerName,
           ),
         ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Odaya katılamadınız')),
       );
     }
   }
@@ -42,24 +64,28 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Odaya Katıl')),
+      appBar: AppBar(title: const Text('Odaya Katıl')),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             TextField(
               controller: _roomCodeController,
-              decoration: InputDecoration(labelText: 'Oda Kodu'),
+              decoration: const InputDecoration(labelText: 'Oda Kodu'),
             ),
             TextField(
-              controller: _nameController,
-              decoration: InputDecoration(labelText: 'İsminiz'),
+              controller: _playerNameController,
+              decoration: const InputDecoration(labelText: 'Oyuncu İsmi'),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _joinRoom,
-              child: Text('Katıl'),
+              child: const Text('Katıl'),
             ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            ]
           ],
         ),
       ),

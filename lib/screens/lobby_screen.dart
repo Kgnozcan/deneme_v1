@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/game_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/room.dart';
-import '../models/player.dart';
+import '../services/game_service.dart';
 import 'game_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
@@ -19,58 +19,40 @@ class LobbyScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _LobbyScreenState createState() => _LobbyScreenState();
+  State<LobbyScreen> createState() => _LobbyScreenState();
 }
 
 class _LobbyScreenState extends State<LobbyScreen> {
   final GameService _gameService = GameService();
   late Stream<Room> _roomStream;
   bool _startingGame = false;
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
     _roomStream = _gameService.getRoomStream(widget.roomId);
-
-    // 🧪 TEST MODU: Eğer ev sahibiysen oyunu otomatik başlat
-    Future.delayed(Duration(seconds: 2), () async {
-      if (widget.isHost) {
-        await _gameService.startGame(widget.roomId);
-      }
-    });
-  }
-
-  Future<void> _startGame() async {
-    setState(() {
-      _startingGame = true;
-    });
-
-    try {
-      await _gameService.startGame(widget.roomId);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Oyun başlatılırken hata oluştu: $e')),
-      );
-      setState(() {
-        _startingGame = false;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Oyun Lobisi')),
+      appBar: AppBar(title: Text('Lobi')),
       body: StreamBuilder<Room>(
         stream: _roomStream,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
+          }
+
+          if (!snapshot.hasData) {
+            return Center(child: Text('Oda bulunamadı.'));
           }
 
           final room = snapshot.data!;
 
-          if (room.isGameStarted) {
+          if (room.isGameStarted && !_navigated) {
+            _navigated = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               Navigator.pushReplacement(
                 context,
@@ -86,45 +68,46 @@ class _LobbyScreenState extends State<LobbyScreen> {
             });
           }
 
-          return Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Oda Kodu: ${room.id}',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                SizedBox(height: 20),
-                Text('Oyuncular:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: room.players.length,
-                    itemBuilder: (context, index) {
-                      final player = room.players[index];
-                      return ListTile(
-                        title: Text(player.name),
-                        trailing: player.isHost
-                            ? Chip(label: Text('Ev Sahibi'))
-                            : null,
-                      );
-                    },
-                  ),
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 40),
+              Center(
+                child: Text('Oda Kodu: ${room.id}', style: TextStyle(fontSize: 24)),
+              ),
+              const SizedBox(height: 20),
+              Text('Oyuncular:', style: TextStyle(fontSize: 20)),
+              const SizedBox(height: 10),
+              ...room.players.map((player) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Text(
+                  player.name,
+                  style: TextStyle(fontSize: 16),
                 ),
-                if (widget.isHost)
-                  ElevatedButton(
-                    onPressed:
-                    room.players.length >= 2 && !_startingGame ? _startGame : null,
-                    child: _startingGame
-                        ? CircularProgressIndicator(color: Colors.white)
-                        : Text('Oyunu Başlat'),
-                  )
-                else
-                  Text(
-                    'Ev sahibinin oyunu başlatmasını bekleyin...',
-                    textAlign: TextAlign.center,
-                  ),
-              ],
-            ),
+              )),
+              const SizedBox(height: 30),
+              if (widget.isHost && !_startingGame)
+                ElevatedButton(
+                  onPressed: () async {
+                    setState(() {
+                      _startingGame = true;
+                    });
+                    await _gameService.startGame(widget.roomId);
+                  },
+                  child: Text('Oyunu Başlat'),
+                ),
+              if (!widget.isHost)
+                Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: Text('Ev sahibinin oyunu başlatması bekleniyor...'),
+                ),
+              if (_startingGame)
+                Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: Text('Oyun başlatılıyor...'),
+                ),
+            ],
           );
         },
       ),
