@@ -89,8 +89,12 @@ class _GameScreenState extends State<GameScreen> {
   void _navigateToChooseAnswer(String questionText, List<String> allAnswers) {
     if (!hasNavigatedToVote) {
       hasNavigatedToVote = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.push(
+      print("🚀 _navigateToChooseAnswer tetiklendi. Ekran açılıyor...");
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _gameService.setVotesEvaluated(widget.roomId, true); // <-- Burası eklendi ✅
+
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ChooseAnswerScreen(
@@ -104,14 +108,25 @@ class _GameScreenState extends State<GameScreen> {
                   widget.playerId,
                   votedPlayerId,
                 );
-                Navigator.pop(context);
+                Navigator.pop(context); // seçimi yaptıktan sonra kapatır.
               },
             ),
           ),
         );
+
+        // ChooseAnswerScreen kapandıktan sonra çalışır
+        if (mounted) {
+          setState(() {
+            hasNavigatedToVote = false;
+          });
+        }
       });
     }
   }
+
+
+
+
 
   void _navigateToResultScreen(String correctAnswer, List<dynamic> players, List<String> answers) {
     if (!hasNavigatedToResult) {
@@ -131,10 +146,12 @@ class _GameScreenState extends State<GameScreen> {
               playerScores: playerScores,
               onNext: () async {
                 await _gameService.goToNextRound(widget.roomId);
-                hasNavigatedToBluff = false;
-                hasNavigatedToVote = false;
-                hasNavigatedToResult = false;
-                hasCalculatedScore = false;
+                setState(() {
+                  hasNavigatedToBluff = false;
+                  hasNavigatedToVote = false;
+                  hasNavigatedToResult = false;
+                  hasCalculatedScore = false;
+                });
               },
             ),
           ),
@@ -172,17 +189,107 @@ class _GameScreenState extends State<GameScreen> {
             _navigateToEnterBluff(question['text']);
           } else if (answers.length == players.length && !votesEvaluated) {
             final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
+
+            // Buraya ekliyoruz: minimum 4 yanlış cevap ekle (default cevaplar)
+            List<String> defaultFakeAnswers = [
+              "Berlin", "Paris", "Roma", "Tokyo", "Madrid", "Londra", "New York"
+            ]..shuffle();
+
+            // Eksikse ekleyerek tamamla (toplam 4 adet olacak şekilde)
+            while (cleanedAnswers.length < 4) {
+              String fakeAnswer = defaultFakeAnswers.removeLast();
+              if (!cleanedAnswers.contains(fakeAnswer) && fakeAnswer != correctAnswer) {
+                cleanedAnswers.add(fakeAnswer);
+              }
+            }
+
+            // Doğru cevabı ekle (toplam 5 cevap olur)
             if (!cleanedAnswers.contains(correctAnswer)) {
               cleanedAnswers.add(correctAnswer);
             }
+
             final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
+
+            print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
             _navigateToChooseAnswer(question['text'], allAnswers);
-          } else if (votesEvaluated && !hasNavigatedToResult) {
+          }else if (votesEvaluated && !hasNavigatedToResult) {
             if (widget.isHost && !hasCalculatedScore) {
               hasCalculatedScore = true;
-              _gameService.calculateVotesAndScore(widget.roomId, correctAnswer);
+              _gameService.calculateVotesAndScore(widget.roomId, correctAnswer).then((_) {
+                _gameService.setShowResults(widget.roomId, true);
+              });
             }
-            _navigateToResultScreen(correctAnswer, players, answers);
+            hasNavigatedToResult = true;
+            final playerScores = {
+              for (var p in players) p['name'] as String: (p['score'] ?? 0) as int
+            };
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ResultScreen(
+                    correctAnswer: correctAnswer,
+                    playerScores: playerScores,
+                    onNext: () async {
+                      await _gameService.goToNextRound(widget.roomId);
+                      setState(() {
+                        hasNavigatedToBluff = false;
+                        hasNavigatedToVote = false;
+                        hasNavigatedToResult = false;
+                        hasCalculatedScore = false;
+                      });
+                    },
+                  ),
+                ),
+              );
+            });
+          } else if (answers.length == players.length && !votesEvaluated) {
+            final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
+
+            // Firestore'dan fakeAnswers'ı al
+            final currentQuestion = question;
+            final fakeAnswers = List<String>.from(currentQuestion?['fakeAnswers'] ?? []);
+            fakeAnswers.shuffle();
+
+            while (cleanedAnswers.length < 4 && fakeAnswers.isNotEmpty) {
+              final fake = fakeAnswers.removeLast();
+              if (!cleanedAnswers.contains(fake) && fake != correctAnswer) {
+                cleanedAnswers.add(fake);
+              }
+            }
+
+            if (!cleanedAnswers.contains(correctAnswer)) {
+              cleanedAnswers.add(correctAnswer);
+            }
+
+            final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
+
+            print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
+            _navigateToChooseAnswer(question['text'], allAnswers);
+          }
+          else if (answers.length == players.length && !votesEvaluated) {
+            final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
+
+            // Firestore'dan fakeAnswers'ı al
+            final currentQuestion = question;
+            final fakeAnswers = List<String>.from(currentQuestion?['fakeAnswers'] ?? []);
+            fakeAnswers.shuffle();
+
+            while (cleanedAnswers.length < 4 && fakeAnswers.isNotEmpty) {
+              final fake = fakeAnswers.removeLast();
+              if (!cleanedAnswers.contains(fake) && fake != correctAnswer) {
+                cleanedAnswers.add(fake);
+              }
+            }
+
+            if (!cleanedAnswers.contains(correctAnswer)) {
+              cleanedAnswers.add(correctAnswer);
+            }
+
+            final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
+
+            print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
+            _navigateToChooseAnswer(question['text'], allAnswers);
           }
 
           if (showResults) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -18,9 +19,42 @@ class EnterBluffScreen extends StatefulWidget {
 class _EnterBluffScreenState extends State<EnterBluffScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _submitting = false;
+  int _remainingSeconds = 15;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_remainingSeconds == 0) {
+        _timer?.cancel();
+        _autoSubmit();
+      } else {
+        setState(() {
+          _remainingSeconds--;
+        });
+      }
+    });
+  }
+
+  Future<void> _autoSubmit() async {
+    List<String> defaultFakeAnswers = [
+      "Berlin", "Paris", "Roma", "Tokyo", "Madrid", "Londra", "New York"
+    ]..shuffle();
+
+    String autoBluff = defaultFakeAnswers.first;
+    await widget.onSubmit(autoBluff);
+  }
+
 
   Future<void> _handleSubmit() async {
     if (_controller.text.trim().isEmpty) return;
+
+    _timer?.cancel();
 
     setState(() {
       _submitting = true;
@@ -29,8 +63,14 @@ class _EnterBluffScreenState extends State<EnterBluffScreen> {
     await widget.onSubmit(_controller.text.trim());
 
     if (mounted) {
-      Navigator.pop(context); // Kullanıcıyı geri gönder
+      Navigator.pop(context);
     }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -53,6 +93,21 @@ class _EnterBluffScreenState extends State<EnterBluffScreen> {
                 style: GoogleFonts.orbitron(color: Colors.white, fontSize: 24),
               ),
               const SizedBox(height: 32),
+
+              // ⏳ Sayaç Görseli
+              Center(
+                child: Text(
+                  "$_remainingSeconds saniye",
+                  style: GoogleFonts.orbitron(
+                    color: Colors.redAccent,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
               TextField(
                 controller: _controller,
                 style: const TextStyle(color: Colors.white),
@@ -64,7 +119,9 @@ class _EnterBluffScreenState extends State<EnterBluffScreen> {
                   border: const OutlineInputBorder(),
                 ),
               ),
+
               const SizedBox(height: 20),
+
               ElevatedButton(
                 onPressed: _submitting ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(

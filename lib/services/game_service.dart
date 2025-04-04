@@ -68,6 +68,18 @@ class GameService {
     return roomId;
   }
 
+  Future<void> setShowResults(String roomId, bool value) async {
+    await _firestore.collection('rooms').doc(roomId).update({
+      'showResults': value,
+    });
+  }
+
+  Future<void> setVotesEvaluated(String roomId, bool evaluated) async {
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(roomId)
+        .update({'votesEvaluated': evaluated});
+  }
 
   Future<void> startGame(String roomId) async {
     await _firestore.collection('rooms').doc(roomId).update({

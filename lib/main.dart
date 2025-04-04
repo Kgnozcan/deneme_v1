@@ -10,11 +10,17 @@ import 'screens/join_room_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, // ✅ Eksikse hata verir
+    options: DefaultFirebaseOptions.currentPlatform,
   );
-  await FirebaseAuth.instance.signInAnonymously();   // ✅ Bu satır buraya eklenmiş olmalı
+  await FirebaseAuth.instance.signInAnonymously();
+
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+  };
+
   runApp(MyApp());
 }
+
 
 
 class MyApp extends StatelessWidget {
