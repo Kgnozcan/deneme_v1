@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:deneme_v1/screens/home_screen.dart';
-import 'package:deneme_v1/screens/create_room_screen.dart';
-import 'package:deneme_v1/screens/join_room_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'firebase_options.dart';
+import 'screens/home_screen.dart';
+import 'screens/create_room_screen.dart';
+import 'screens/join_room_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+    options: DefaultFirebaseOptions.currentPlatform, // ✅ Eksikse hata verir
   );
-
+  await FirebaseAuth.instance.signInAnonymously();   // ✅ Bu satır buraya eklenmiş olmalı
   runApp(MyApp());
 }
+
 
 class MyApp extends StatelessWidget {
   @override

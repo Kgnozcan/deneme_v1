@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/game_service.dart';
@@ -30,6 +31,7 @@ class _GameScreenState extends State<GameScreen> {
   bool hasNavigatedToVote = false;
   bool hasNavigatedToResult = false;
   bool hasCalculatedScore = false;
+  Timer? bluffTimer;
 
   @override
   void initState() {
@@ -40,9 +42,27 @@ class _GameScreenState extends State<GameScreen> {
         .snapshots();
   }
 
+  @override
+  void dispose() {
+    bluffTimer?.cancel();
+    super.dispose();
+  }
+
   void _navigateToEnterBluff(String questionText) {
     if (!hasNavigatedToBluff) {
       hasNavigatedToBluff = true;
+
+      bluffTimer = Timer(Duration(seconds: 15), () async {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        print('⏰ 15 saniye doldu, dummy cevap gönderiliyor');
+        await _gameService.submitAnswer(
+          widget.roomId,
+          widget.playerId,
+          'Bluff-${widget.playerId}|${widget.playerId}',
+        );
+      });
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.push(
           context,
@@ -50,12 +70,14 @@ class _GameScreenState extends State<GameScreen> {
             builder: (context) => EnterBluffScreen(
               questionText: questionText,
               onSubmit: (bluffText) async {
+                bluffTimer?.cancel();
+                print('✍️ Yanıltıcı cevap gönderiliyor: $bluffText');
                 await _gameService.submitAnswer(
                   widget.roomId,
                   widget.playerId,
-                  "$bluffText|${widget.playerId}", // burada birleştirme yapılıyor
+                  "$bluffText|${widget.playerId}",
                 );
-                Navigator.pop(context);
+                if (mounted) Navigator.pop(context);
               },
             ),
           ),
@@ -91,7 +113,7 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _navigateToResultScreen(String correctAnswer, List<dynamic> players) {
+  void _navigateToResultScreen(String correctAnswer, List<dynamic> players, List<String> answers) {
     if (!hasNavigatedToResult) {
       hasNavigatedToResult = true;
 
@@ -144,17 +166,23 @@ class _GameScreenState extends State<GameScreen> {
 
           final playerAlreadyAnswered = answers.any((a) => a.endsWith('|${widget.playerId}'));
 
+          print('📊 Cevap sayısı: ${answers.length}, Oyuncu sayısı: ${players.length}, Votes evaluated: $votesEvaluated');
+
           if (question != null && !playerAlreadyAnswered) {
             _navigateToEnterBluff(question['text']);
           } else if (answers.length == players.length && !votesEvaluated) {
             final cleanedAnswers = answers.map((a) => a.split('|')[0]).toList();
-            final allAnswers = List<String>.from([...cleanedAnswers, correctAnswer])..shuffle();
+            if (!cleanedAnswers.contains(correctAnswer)) {
+              cleanedAnswers.add(correctAnswer);
+            }
+            final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
+            _navigateToChooseAnswer(question['text'], allAnswers);
           } else if (votesEvaluated && !hasNavigatedToResult) {
             if (widget.isHost && !hasCalculatedScore) {
               hasCalculatedScore = true;
               _gameService.calculateVotesAndScore(widget.roomId, correctAnswer);
             }
-            _navigateToResultScreen(correctAnswer, players);
+            _navigateToResultScreen(correctAnswer, players, answers);
           }
 
           if (showResults) {

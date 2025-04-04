@@ -25,24 +25,49 @@ class GameService {
     Player host = Player(id: currentUserId, name: hostName, isHost: true);
     Room newRoom = Room(id: roomId, name: roomName, players: [host]);
 
+    // Sorulara fakeAnswers eklendi
+    final questions = [
+      {
+        'text': 'Dünyanın en büyük okyanusu nedir?',
+        'correctAnswer': 'Pasifik',
+        'fakeAnswers': ['Atlantik', 'Hint', 'Arktik', 'Akdeniz'],
+      },
+      {
+        'text': 'Ay hangi gezegene aittir?',
+        'correctAnswer': 'Dünya',
+        'fakeAnswers': ['Mars', 'Venüs', 'Satürn', 'Jüpiter'],
+      },
+      {
+        'text': 'En hızlı kara hayvanı?',
+        'correctAnswer': 'Çita',
+        'fakeAnswers': ['Tavşan', 'Aslan', 'At', 'Kaplan'],
+      },
+      {
+        'text': 'İstanbul hangi kıtada yer alır?',
+        'correctAnswer': 'Avrupa ve Asya',
+        'fakeAnswers': ['Sadece Avrupa', 'Sadece Asya', 'Afrika', 'Antarktika'],
+      },
+      {
+        'text': 'Işık yılı neyi ölçer?',
+        'correctAnswer': 'Mesafe',
+        'fakeAnswers': ['Zaman', 'Hız', 'Yoğunluk', 'Kütle'],
+      },
+    ];
+
     await _firestore.collection('rooms').doc(roomId).set({
       ...newRoom.toMap(),
       'currentRound': 0,
-      'maxRounds': 5,
-      'questions': [
-        {'text': 'Dünyanın en büyük okyanusu nedir?', 'correctAnswer': 'Pasifik'},
-        {'text': 'Ay hangi gezegene aittir?', 'correctAnswer': 'Dünya'},
-        {'text': 'En hızlı kara hayvanı?', 'correctAnswer': 'Çita'},
-        {'text': 'İstanbul hangi kıtada yer alır?', 'correctAnswer': 'Avrupa ve Asya'},
-        {'text': 'Işık yılı neyi ölçer?', 'correctAnswer': 'Mesafe'},
-      ],
+      'maxRounds': questions.length,
+      'questions': questions,
       'answers': [],
       'votes': [],
       'showResults': false,
+      'votesEvaluated': false,
     });
 
     return roomId;
   }
+
 
   Future<void> startGame(String roomId) async {
     await _firestore.collection('rooms').doc(roomId).update({
@@ -51,20 +76,40 @@ class GameService {
   }
 
   Future<void> submitAnswer(String roomId, String playerId, String answerText) async {
+    if (roomId.isEmpty || playerId.isEmpty || answerText.isEmpty) {
+      print('❌ submitAnswer: Parametrelerden biri boş! ➤ roomId: $roomId | playerId: $playerId | answerText: $answerText');
+      return;
+    }
+
     final roomRef = _firestore.collection('rooms').doc(roomId);
 
-    // 1. Alt koleksiyona cevabı yaz (gerekirse burada saklamaya devam edebilirsin)
-    await roomRef.collection('answers').doc(playerId).set({
-      'answer': answerText,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    try {
+      // 1. Alt koleksiyona cevabı yaz
+      await roomRef.collection('answers').doc(playerId).set({
+        'answer': answerText,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      print('✅ Alt koleksiyona cevap yazıldı: $answerText');
 
-    // 2. Ana dokümandaki cevaplar listesine benzersiz olarak ekle (playerId ile birlikte)
-    final uniqueAnswer = '$answerText|$playerId';
-    await roomRef.update({
-      'answers': FieldValue.arrayUnion([uniqueAnswer])
-    });
+      // 2. Mevcut cevapları al
+      final roomSnap = await roomRef.get();
+      final data = roomSnap.data() as Map<String, dynamic>;
+      final answers = List<String>.from(data['answers'] ?? []);
+
+      // 3. Eski cevabı çıkar ve yenisini ekle
+      final updatedAnswers = answers.where((a) => !a.endsWith('|$playerId')).toList();
+      updatedAnswers.add(answerText);
+
+      // 4. Güncelle
+      await roomRef.update({'answers': updatedAnswers});
+      print('✅ Ana dokümana cevap eklendi: $answerText');
+    } catch (e) {
+      print('❌ submitAnswer sırasında hata oluştu: $e');
+    }
   }
+
+
+
 
 
 
@@ -76,25 +121,45 @@ class GameService {
     });
   }
 
-  Future<void> calculateVotesAndScore(String roomId, String correctPlayerId) async {
-    final votesSnapshot = await _firestore.collection('rooms').doc(roomId).collection('votes').get();
-
+  Future<void> calculateVotesAndScore(String roomId, String correctAnswer) async {
     final roomRef = _firestore.collection('rooms').doc(roomId);
     final roomDoc = await roomRef.get();
     final roomData = roomDoc.data()!;
-    final players = (roomData['players'] as List<dynamic>).map((p) => Map<String, dynamic>.from(p)).toList();
+    final players = (roomData['players'] as List<dynamic>)
+        .map((p) => Map<String, dynamic>.from(p))
+        .toList();
+
+    final answers = List<String>.from(roomData['answers'] ?? []);
+    final votesSnapshot = await roomRef.collection('votes').get();
+
+    // 🧠 Doğru cevabı bluff olarak giren oyuncunun ID'si
+    String? correctBluffPlayerId;
+    for (var ans in answers) {
+      final parts = ans.split('|');
+      if (parts[0].toLowerCase().trim() == correctAnswer.toLowerCase().trim()) {
+        correctBluffPlayerId = parts.length > 1 ? parts[1] : null;
+        break;
+      }
+    }
 
     for (var vote in votesSnapshot.docs) {
       final voterId = vote.id;
       final votedPlayerId = vote['votedPlayerId'];
 
       for (var player in players) {
-        if (player['id'] == voterId && votedPlayerId == correctPlayerId) {
+        if (player['id'] == voterId && votedPlayerId == correctBluffPlayerId) {
+          // Doğru cevabı seçen oyuncu +100
           player['score'] = (player['score'] ?? 0) + 100;
         }
 
-        if (player['id'] == votedPlayerId && votedPlayerId != correctPlayerId) {
+        if (player['id'] == votedPlayerId && votedPlayerId != correctBluffPlayerId) {
+          // Kandıran oyuncuya +50
           player['score'] = (player['score'] ?? 0) + 50;
+        }
+
+        if (player['id'] == correctBluffPlayerId && votedPlayerId == correctBluffPlayerId) {
+          // Doğru cevabı bluff olarak giren oyuncuya +25 bonus
+          player['score'] = (player['score'] ?? 0) + 25;
         }
       }
     }
@@ -104,12 +169,14 @@ class GameService {
       'votesEvaluated': true,
     });
 
+    // Oyları temizle
     final batch = _firestore.batch();
     for (var vote in votesSnapshot.docs) {
       batch.delete(vote.reference);
     }
     await batch.commit();
   }
+
 
   Future<void> goToNextRound(String roomId) async {
     final docRef = _firestore.collection('rooms').doc(roomId);

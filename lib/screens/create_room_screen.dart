@@ -16,8 +16,8 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     if (_roomNameController.text.isEmpty || _nameController.text.isEmpty) return;
 
     String roomId = await _gameService.createRoom(
-      _roomNameController.text,
-      _nameController.text,
+      _roomNameController.text.trim(),
+      _nameController.text.trim(),
     );
 
     Navigator.pushReplacement(
@@ -26,7 +26,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
         builder: (context) => LobbyScreen(
           roomId: roomId,
           playerId: _gameService.currentUserId,
-          playerName: _nameController.text,
+          playerName: _nameController.text.trim(),
           isHost: true,
         ),
       ),
@@ -49,10 +49,10 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
               controller: _nameController,
               decoration: InputDecoration(labelText: 'İsminiz'),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _createRoom,
-              child: Text('Oluştur'),
+              child: const Text('Oluştur'),
             ),
           ],
         ),

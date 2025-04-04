@@ -1,3 +1,15 @@
+// build.gradle.kts (Proje Seviyesi)
+buildscript {
+    dependencies {
+        classpath("com.google.gms:google-services:4.4.0") // ✅ Firebase eklendi
+    }
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
 allprojects {
     repositories {
         google()
