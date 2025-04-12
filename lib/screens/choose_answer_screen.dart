@@ -10,7 +10,7 @@ class ChooseAnswerScreen extends StatefulWidget {
     required this.questionText,
     required this.allAnswers,
     required this.onSubmit,
-    Key? key,
+    Key? key, required String playerId, required String roomId,
   }) : super(key: key);
 
   @override

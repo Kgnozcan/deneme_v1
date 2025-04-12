@@ -147,7 +147,7 @@ class _GameScreenState extends State<GameScreen> {
                   hasNavigatedToResult = false;
                   hasCalculatedScore = false;
                 });
-              },
+              }, playerId: '',
             ),
           ),
         );
