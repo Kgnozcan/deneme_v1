@@ -38,6 +38,7 @@ class _ChooseAnswerScreenState extends State<ChooseAnswerScreen> {
           _secondsRemaining--;
         });
       }
+
     });
   }
 
