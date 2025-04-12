@@ -55,13 +55,10 @@ class _GameScreenState extends State<GameScreen> {
       bluffTimer = Timer(Duration(seconds: 15), () async {
         if (!mounted) return;
         Navigator.of(context).pop();
-        print('⏰ 15 saniye doldu, dummy cevap gönderiliyor');
-        await _gameService.submitAnswer(
-          widget.roomId,
-          widget.playerId,
-          'Bluff-${widget.playerId}|${widget.playerId}',
-        );
-      });
+        print('⏰ 15 saniye doldu, oyuncu cevap vermedi. Sahte cevap eklenmeyecek.');
+        // Hiçbir cevap göndermiyoruz, eksikler VoteAnswerScreen'e geçerken eklenecek
+      }
+    );
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.push(
