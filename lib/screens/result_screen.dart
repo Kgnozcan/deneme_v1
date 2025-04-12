@@ -3,18 +3,20 @@ import 'package:google_fonts/google_fonts.dart';
 
 class ResultScreen extends StatelessWidget {
   final String correctAnswer;
-  final Map<String, int> playerScores;
+  final List<Map<String, dynamic >> playerScores;
   final VoidCallback onNext;
   final String roomId; // Ekledik
   final String playerId; // Ekledik
+  final bool isHost;
 
   const ResultScreen({
     Key? key,
+    required this.roomId,
+    required this.playerId,
     required this.correctAnswer,
     required this.playerScores,
+    required this.isHost,
     required this.onNext,
-    required this.roomId, // Ekledik
-    required this.playerId, // Ekledik
   }) : super(key: key);
 
   @override
@@ -37,10 +39,11 @@ class ResultScreen extends StatelessWidget {
               style: TextStyle(fontSize: 24, color: Colors.cyanAccent),
             ),
             const SizedBox(height: 20),
-            ...playerScores.entries.map((entry) => Text(
-              '${entry.key}: ${entry.value} puan',
+            ...playerScores.map((player) => Text(
+              '${player['name']}: ${player['score']} puan',
               style: const TextStyle(fontSize: 18, color: Colors.white),
             )),
+
             const SizedBox(height: 50),
             ElevatedButton(
               onPressed: onNext,

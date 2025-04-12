@@ -2,16 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FinalResultScreen extends StatelessWidget {
-  final String roomId;
-  final String playerId;
+  final String correctAnswer;
+  final List<Map<String, dynamic >> playerScores;
+  final VoidCallback onNext;
+  final String roomId; // Ekledik
+  final String playerId; // Ekledik
   final bool isHost;
 
   const FinalResultScreen({
-    Key? key,
-    required this.roomId,
-    required this.playerId,
-    required this.isHost,
+  Key? key,
+  required this.roomId,
+  required this.playerId,
+  required this.correctAnswer,
+  required this.playerScores,
+  required this.isHost,
+  required this.onNext,
   }) : super(key: key);
+
 
   @override
   Widget build(BuildContext context) {

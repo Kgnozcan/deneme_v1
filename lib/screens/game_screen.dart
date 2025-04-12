@@ -68,7 +68,8 @@ class _GameScreenState extends State<GameScreen> {
               questionText: questionText,
               onSubmit: (bluffText) async {
                 bluffTimer?.cancel();
-                print('✍️ Yanıltıcı cevap gönderiliyor: $bluffText');
+                print('✍️ '
+                    'Yanıltıcı cevap gönderiliyor: $bluffText');
                 await _gameService.submitAnswer(
                   widget.roomId,
                   widget.playerId,
@@ -124,9 +125,13 @@ class _GameScreenState extends State<GameScreen> {
     if (!hasNavigatedToResult) {
       hasNavigatedToResult = true;
 
-      final playerScores = {
-        for (var p in players) p['name'] as String: (p['score'] ?? 0) as int
-      };
+      final playerScores = players.map<Map<String, dynamic>>((p) {
+        return {
+          'name': p['name'],
+          'score': p['score'] ?? 0,
+        };
+      }).toList();
+
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pushReplacement(
@@ -136,6 +141,8 @@ class _GameScreenState extends State<GameScreen> {
               correctAnswer: correctAnswer,
               playerScores: playerScores,
               roomId: widget.roomId,
+              playerId: widget.playerId,
+              isHost: widget.isHost,
               onNext: () async {
                 await _gameService.goToNextRound(widget.roomId);
                 setState(() {
@@ -144,7 +151,7 @@ class _GameScreenState extends State<GameScreen> {
                   hasNavigatedToResult = false;
                   hasCalculatedScore = false;
                 });
-              }, playerId: '',
+              },
             ),
           ),
         );
@@ -198,7 +205,17 @@ class _GameScreenState extends State<GameScreen> {
             final allAnswers = List<String>.from(cleanedAnswers)..shuffle();
 
             print("✅ Tüm cevaplar toplandı. ChooseAnswerScreen'e geçiliyor...");
+
+            /// 🔒 votesEvaluated = true sadece host tarafından işaretlenmeli
+            if (widget.isHost) {
+              FirebaseFirestore.instance
+                  .collection('rooms')
+                  .doc(widget.roomId)
+                  .update({'votesEvaluated': true});
+            }
+
             _navigateToChooseAnswer(question['text'], allAnswers);
+
           } else if (votesEvaluated && !showResults) {
             if (widget.isHost && !hasCalculatedScore) {
               hasCalculatedScore = true;

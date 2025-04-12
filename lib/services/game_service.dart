@@ -122,7 +122,12 @@ class GameService {
 
 
 
-
+  Future<void> markVotesEvaluated(String roomId) async {
+    final roomRef = FirebaseFirestore.instance.collection('rooms').doc(roomId);
+    await roomRef.update({
+      'votesEvaluated': true,
+    });
+  }
 
 
 
